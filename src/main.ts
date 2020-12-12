@@ -1,22 +1,37 @@
+import {appId, appSecret} from './private';
 import * as https from 'https';
 import * as querystring from 'querystring';
 import md5 = require('md5');
 
-export const translate = (word: string) => {
-  console.log(md5('123'), 'cici');
+const errMap = {
+  52003: '用户认证失败',
+  52004: 'error2',
+  52005: 'error3',
+  unknow: '服务器繁忙',
+};
 
-  const appId = '???';
-  const appSecret = '???';
+export const translate = (word: string) => {
   const salt = Math.random();
   const sign = md5(appId + word + salt + appSecret);
+  let from, to;
+  if (/[a-zA-Z]/.test(word[0])) {
+    //英译中
+    from = 'en';
+    to = 'zh';
+  } else {
+    //中译英
+    from = 'zh';
+    to = 'en';
+  }
+
   //获取查询字符串
   const query: string = querystring.stringify({
     q: word,
-    from: 'en',
-    to: 'zh',
+    from,
+    to,
     appid: appId,
-    salt: salt,
-    sign: sign,
+    salt,
+    sign,
   });
   //http://api.fanyi.baidu.com/api/trans/vip/translate?q=apple&from=en&to=zh&appid=2015063000000001&salt=1435660288&sign=f89f9594663708c1605f3d736d01d2d4
 
@@ -27,17 +42,36 @@ export const translate = (word: string) => {
     method: 'GET',
   };
 
-  const req = https.request(options, (res) => {
-    console.log('状态码', res.statusCode);
-    console.log('请求头', res.headers);
-
-    res.on('data', (d) => {
-      process.stdout.write(d);
+  const request = https.request(options, (response) => {
+    let chunks = [];
+    response.on('data', (chunk) => {
+      chunks.push(chunk);
+    });
+    response.on('end', () => {
+      const string = Buffer.concat(chunks).toString();
+      type BaiduResult = {
+        err_code?: string;
+        err_msg?: string;
+        from: string;
+        to: string;
+        trans_result: {
+          src: string;
+          dst: string;
+        }[];
+      };
+      const obj: BaiduResult = JSON.parse(string);
+      if (obj.err_code in errMap) {
+        console.error(errMap[obj.err_code] || obj.err_msg);
+        process.exit(2);
+      } else {
+        console.log(obj.trans_result[0].dst);
+        process.exit(0);
+      }
     });
   });
 
-  req.on('error', (e) => {
+  request.on('error', (e) => {
     console.error(e);
   });
-  req.end();
+  request.end();
 };
