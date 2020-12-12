@@ -3,11 +3,14 @@ import * as https from 'https';
 import * as querystring from 'querystring';
 import md5 = require('md5');
 
-const errMap = {
+type ErrorMap = {
+  [key: string] : string | undefined
+}
+
+const errMap: ErrorMap = {
   52003: '用户认证失败',
-  52004: 'error2',
-  52005: 'error3',
-  unknow: '服务器繁忙',
+  54001: '签名错误',
+  54004: '账户余额不足',
 };
 
 export const translate = (word: string) => {
@@ -43,7 +46,7 @@ export const translate = (word: string) => {
   };
 
   const request = https.request(options, (response) => {
-    let chunks = [];
+    let chunks: Buffer[] = [];
     response.on('data', (chunk) => {
       chunks.push(chunk);
     });
@@ -60,11 +63,13 @@ export const translate = (word: string) => {
         }[];
       };
       const obj: BaiduResult = JSON.parse(string);
-      if (obj.err_code in errMap) {
+      if (obj.err_code) {
         console.error(errMap[obj.err_code] || obj.err_msg);
         process.exit(2);
       } else {
-        console.log(obj.trans_result[0].dst);
+        obj.trans_result.map(obj => {
+          console.log(obj.dst);
+        });
         process.exit(0);
       }
     });
